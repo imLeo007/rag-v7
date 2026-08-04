@@ -49,7 +49,7 @@ def chunk_text(
             step = chunk_size - overlap
 
             for start in range(0, len(sentence_words), step):
-                piece = sentence_words[start: start + sentence_words]
+                piece = sentence_words[start: start + chunk_size]
 
                 if piece:
                     chunks.append(" ".join(piece))
