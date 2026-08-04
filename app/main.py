@@ -18,7 +18,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="RAG v6", version="5.0.0", lifespan=lifespan)
+app = FastAPI(title="RAG v8", version="5.0.0", lifespan=lifespan)
 
 
 app.include_router(document_router)
