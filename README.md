@@ -1,209 +1,112 @@
-# Hybrid RAG From Scratch — Version 7
+# RAG From Scratch — Version 7
 
-A production-style **Retrieval-Augmented Generation backend** built from first principles with FastAPI, PostgreSQL, pgvector, hybrid search, Reciprocal Rank Fusion, CrossEncoder reranking, metadata filtering, and Docker.
+A clean, modular RAG backend built from first principles.
 
-This repository is part of an incremental RAG learning series. Each version preserves the existing architecture and introduces one meaningful improvement so the effect of every change can be understood, measured, and debugged.
+This project is part of an ongoing learning series where each version adds **one meaningful improvement** without changing everything at once. The goal is simple: understand how retrieval systems actually work under the hood before relying on orchestration frameworks.
 
----
-
-## Project Overview
-
-Modern RAG frameworks can make systems quick to assemble, but they may also hide the decisions that determine retrieval quality.
-
-This project implements the core pipeline directly so every stage remains visible:
-
-- PDF extraction
-- sentence-aware chunking
-- embedding generation
-- vector storage and search
-- PostgreSQL full-text search
-- hybrid retrieval
-- rank fusion
-- CrossEncoder reranking
-- metadata filtering
-- prompt construction
-- LLM generation
-
-The goal is not to avoid frameworks forever. The goal is to understand the underlying system well enough to use frameworks deliberately rather than depend on hidden behaviour.
+Version 7 focuses on making retrieval **more controlled, more relevant, and easier to reason about**.
 
 ---
 
-## Version Progression
+## Why I Built This
 
-| Version | Main Improvement |
-|---|---|
-| V4 | Modular RAG pipeline built from scratch |
-| V5 | Hybrid retrieval with vector search, PostgreSQL full-text search, and RRF |
-| V6 | CrossEncoder reranking for stronger final relevance |
-| **V7** | **Metadata filtering, centralised configuration, and reranker preloading** |
+Many people start building RAG systems with high-level frameworks. That is useful, but it can also hide the decisions that actually shape answer quality.
 
-The architecture is intentionally reused between versions. This makes it easier to isolate the effect of each improvement and reason about failures across the complete pipeline.
+I wanted to understand the full path myself:
 
----
+- how documents are processed
+- how information is stored
+- how relevant text is found
+- how results are ranked
+- how the final answer is grounded in the source
 
-## Architecture
+So instead of hiding the pipeline behind abstractions, I built it step by step.
 
-### Document Ingestion
-
-```text
-PDF Upload + Category
-        ↓
-Plain-text Extraction
-        ↓
-Sentence-aware Chunking with Overlap
-        ↓
-Embedding Generation
-        ↓
-Store Document Metadata
-        +
-Store Chunks and Embeddings
-        +
-Generate PostgreSQL Search Vectors
-```
-
-### Question Answering
-
-```text
-Question + Optional Category Filter
-                  ↓
-          Generate Query Embedding
-                  ↓
-       ┌──────────┴──────────┐
-       ↓                     ↓
-Vector Retrieval      Keyword Retrieval
-   pgvector              tsvector
-       │                     │
-       └──────────┬──────────┘
-                  ↓
-     Reciprocal Rank Fusion
-                  ↓
-       CrossEncoder Reranking
-                  ↓
-            Best Chunks
-                  ↓
-          Prompt Construction
-                  ↓
-                LLM
-                  ↓
-     Grounded Answer + Sources
-```
-
-Metadata filtering is applied inside both retrieval queries before ranking and limiting. This prevents unrelated documents from entering the candidate set.
+The goal is **not** to avoid frameworks forever.  
+The goal is to understand the system well enough to use them with confidence later.
 
 ---
 
-## Core Features
+## What Version 7 Improves
 
-| Feature | Status |
-|---|---:|
-| PDF upload with category metadata | ✅ |
-| Plain-text PDF extraction | ✅ |
-| Sentence-aware chunking with overlap | ✅ |
-| Vector embedding generation | ✅ |
-| Semantic retrieval with pgvector | ✅ |
-| PostgreSQL full-text search with `tsvector` | ✅ |
-| Vector, keyword, and hybrid retrieval modes | ✅ |
-| Reciprocal Rank Fusion | ✅ |
-| CrossEncoder reranking | ✅ |
-| Category-based metadata filtering | ✅ |
-| Document-specific questioning | ✅ |
-| Grounded answers with source metadata | ✅ |
-| Async FastAPI and SQLAlchemy flow | ✅ |
-| Alembic migrations | ✅ |
-| Pydantic Settings configuration | ✅ |
-| Dockerised local development | ✅ |
-| Reranker preloading during application startup | ✅ |
+Version 7 keeps the earlier RAG pipeline and adds a few focused improvements:
+
+- **Hybrid retrieval** to combine semantic search and keyword search
+- **Reranking** to improve the final ordering of retrieved chunks
+- **Metadata filtering** to keep search focused on the right document category
+- **Centralized configuration** for cleaner setup and validation
+- **Reranker preloading** so the model is loaded at startup instead of during the first request
+
+This version is about improving **control, clarity, and answer quality** without changing the whole architecture.
 
 ---
 
-## Why Hybrid Retrieval?
+## Pipeline
 
-Vector search and keyword search solve different retrieval problems.
+> Replace the image path below with the clean pipeline image for V7 in the next step.
 
-**Vector search** is useful for semantic similarity. It can retrieve relevant chunks even when the wording of the question differs from the document.
-
-**Keyword search** is useful for exact terminology, names, and phrases that semantic retrieval may miss.
-
-Version 7 combines both systems:
-
-```text
-Vector Ranking
-      +
-Keyword Ranking
-      ↓
-Reciprocal Rank Fusion
-      ↓
-CrossEncoder Reranking
-```
-
-This produces a stronger candidate set than relying on either retrieval method alone.
+![V7 RAG Pipeline](/screenshots/rag_v7_pipeline.png)
 
 ---
 
-## Why CrossEncoder Reranking?
+## How It Works
 
-Embedding similarity is efficient for candidate retrieval, but the chunk with the highest vector score is not always the best answer.
+### 1) Document ingestion
+A PDF is uploaded and its text is extracted.
 
-A CrossEncoder evaluates the complete `(question, chunk)` pair and produces a stronger relevance score. It is used only after retrieval, so the system keeps vector and keyword search fast while improving the final ordering of evidence.
+### 2) Cleaning and chunking
+The text is cleaned and split into smaller chunks so it can be searched effectively.
 
----
+### 3) Indexing and storage
+Each chunk is stored with:
+- the original text
+- its embedding
+- searchable metadata
 
-## Performance Optimisation
+### 4) Question retrieval
+When a user asks a question, the system searches in two ways:
+- **semantic search** for meaning
+- **keyword search** for exact terms
 
-Each major stage of the retrieval pipeline was timed independently rather than optimised by guesswork.
+### 5) Hybrid fusion and reranking
+The system merges both retrieval results, then reranks them so the most relevant chunks rise to the top.
 
-Initial testing showed that the first hybrid request took approximately **29 seconds** because the CrossEncoder model was being loaded during the request.
-
-The reranker was moved to the FastAPI startup lifecycle and cached for reuse.
-
-Typical warm-request timings after preloading:
-
-```text
-Keyword Retrieval       ≈ 0.003 s
-RRF Fusion              ≈ 0.00001 s
-CrossEncoder Reranking  ≈ 0.12 s
-```
-
-This moved model-loading cost to application startup and reduced request-time reranking latency dramatically.
-
-The debugging process followed this pattern:
-
-```text
-Observe Slow Request
-        ↓
-Time Every Stage
-        ↓
-Identify the Bottleneck
-        ↓
-Preload the Reranker
-        ↓
-Measure Again
-        ↓
-Confirm the Improvement
-```
+### 6) Grounded answer generation
+The best retrieved chunks are passed into the prompt, and the model answers using only that context.
 
 ---
 
-## Technology Stack
+## Why This Version Matters
 
-- **Python**
-- **FastAPI**
-- **PostgreSQL**
-- **pgvector**
-- **SQLAlchemy 2.0**
-- **Alembic**
-- **Pydantic Settings**
-- **Sentence Transformers**
-- **CrossEncoder**
-- **LiteLLM**
-- **Gemini**
-- **Docker**
+A good RAG system is not just about calling a model.  
+It is about building a strong information pipeline.
+
+Version 7 reinforced a few important ideas for me:
+
+- better retrieval leads to better answers
+- exact terms and semantic meaning both matter
+- ranking quality matters after retrieval
+- metadata should be applied early, not after the search is done
+- performance problems should be measured, not guessed
+
+This version helped me move from **“it works”** to **“I understand why it works.”**
+
+---
+
+## Main Capabilities
+
+- Upload PDF documents with category metadata
+- Store document content for later retrieval
+- Ask questions across all documents
+- Ask questions within a specific document
+- Filter retrieval by category
+- Use vector, keyword, or hybrid retrieval
+- Return grounded answers with source information
+- Run the whole project in Docker
 
 ---
 
 ## Project Structure
-
-The exact directory names may vary slightly, but the codebase follows a modular backend structure similar to this:
 
 ```text
 app/
@@ -221,59 +124,18 @@ app/
 │   ├── document.py
 │   └── document_chunk.py
 ├── routers/
-│   ├── documents.py
-│   └── questions.py
+│   ├── document.py
+│   └── question.py
 ├── schemas/
-│   ├── documents.py
-│   └── questions.py
+│   ├── document.py
+│   └── question.py
 ├── services/
 │   ├── document_service.py
 │   └── pdf_service.py
-├── main.py
-alembic/
-docker-compose.yml
-Dockerfile
-requirements.txt
-.env.example
-README.md
-LICENSE
+└── main.py
 ```
 
----
-
-## Configuration
-
-Configuration values are centralised and validated through Pydantic Settings.
-
-Example `.env`:
-
-```env
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/rag_db
-
-EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
-EMBEDDING_DIMENSION=384
-
-RERANKER_MODEL_NAME=cross-encoder/ms-marco-MiniLM-L6-v2
-RERANK_CANDIDATE_K=10
-
-GEMINI_API_KEY=your_api_key
-GEMINI_MODEL=gemini/gemini-2.0-flash
-```
-
-Never commit `.env` files or real API keys.
-
-A safe `.gitignore` should include at least:
-
-```gitignore
-.env
-.venv/
-__pycache__/
-*.pyc
-.pytest_cache/
-.idea/
-.vscode/
-.DS_Store
-```
+The structure is intentionally modular so each stage of the pipeline can be understood and debugged independently.
 
 ---
 
@@ -282,15 +144,31 @@ __pycache__/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/<your-username>/<your-repository>.git
-cd <your-repository>
+git clone https://github.com/imLeo007/rag-from-scratch-v7.git
+cd rag-from-scratch-v7
 ```
 
 ### 2. Create the environment file
 
-Create a `.env` file using the configuration example above.
+Create a `.env` file based on your project settings.
 
-### 3. Build and start the services
+Example:
+
+```env
+DATABASE_URL=postgresql+asyncpg://postgres:password@db:5432/rag_v7_db
+
+EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+EMBEDDING_DIMENSION=384
+
+RERANKER_MODEL_NAME=cross-encoder/ms-marco-MiniLM-L-6-v2
+RERANK_CANDIDATE_K=10
+
+GEMINI_API_KEY=your_api_key
+GEMINI_MODEL=gemini/gemini-2.0-flash
+PORT=8000
+```
+
+### 3. Start the services
 
 ```bash
 docker compose up --build
@@ -302,7 +180,7 @@ docker compose up --build
 docker compose exec api alembic upgrade head
 ```
 
-### 5. Open Swagger UI
+### 5. Open the API docs
 
 ```text
 http://localhost:8000/docs
@@ -310,123 +188,78 @@ http://localhost:8000/docs
 
 ---
 
-## Example Question Request
+## Example Request
 
 ```json
 {
   "question": "What is machine learning?",
-  "category": "artificial-intelligence",
+  "category": "AI",
   "top_k": 3,
   "retrieval_mode": "hybrid"
 }
 ```
 
-When `category` is omitted, the system can search across all uploaded documents.
-
----
-
-## Screenshots
-
-### Hybrid Question Answering
-
-![Hybrid retrieval and grounded answer in Swagger UI](screenshots/swagger_ui.png)
-
-### Retrieval Timings
-
-![CrossEncoder preloading and retrieval timings](screenshots/retrieval_timings.png)
-
-### Stored Search Vectors
-
-![Document chunks, metadata, embeddings, and PostgreSQL search vectors](screenshots/search_vectors.png)
-
-### pgvector Extension
-
-![pgvector extension enabled in PostgreSQL](screenshots/extension.png)
-
 ---
 
 ## Current Scope
 
-This version intentionally supports **plain-text PDFs only**.
+This version currently supports **plain-text PDFs**.
 
-Scanned documents, OCR, tables, images, and layout-aware extraction are outside the current scope because the purpose of Version 7 is to master the central retrieval and generation pipeline first.
+That choice is intentional.
 
----
-
-## Engineering Decisions
-
-- Retrieval and generation are separated into distinct modules.
-- Metadata filtering happens inside SQL queries rather than after retrieval in Python.
-- Vector and keyword retrieval remain independent before rank fusion.
-- CrossEncoder reranking is applied only to a limited candidate set.
-- The reranker is preloaded during application startup.
-- Configuration is centralised through typed settings.
-- Async database access is used throughout the backend.
-- Docker Compose provides reproducible local infrastructure.
-- Each version adds one major concept while preserving the architecture.
+The main goal of this repository is to learn the core ideas behind retrieval, ranking, and grounded generation. More advanced extraction problems like OCR, scanned files, tables, and layout-heavy documents can come later.
 
 ---
 
 ## What This Project Demonstrates
 
-- Building a RAG pipeline without orchestration frameworks
-- Designing modular AI backend architecture
-- Using PostgreSQL as both a relational database and retrieval engine
-- Combining semantic and lexical retrieval
-- Implementing Reciprocal Rank Fusion
-- Applying CrossEncoder reranking
-- Filtering retrieval through metadata
-- Profiling latency and locating real bottlenecks
-- Improving cold-start behaviour through model preloading
-- Debugging retrieval and generation layer by layer
+This repository demonstrates:
+
+- building a RAG system from scratch
+- designing a modular AI backend
+- combining two retrieval styles in one pipeline
+- improving relevance through reranking
+- controlling retrieval through metadata filtering
+- keeping answers grounded in retrieved context
+- measuring and improving the system step by step
 
 ---
 
-## Roadmap
+## Version Progression
 
-The next stages will continue improving retrieval and context quality before moving toward agentic systems.
+| Version | Focus |
+|---|---|
+| V4 | Built the base RAG pipeline from scratch |
+| V5 | Added hybrid retrieval |
+| V6 | Added reranking |
+| **V7** | Added metadata filtering, cleaner configuration, and reranker preloading |
 
-```text
-Parent-child Retrieval
-        ↓
-Context Compression
-        ↓
-Multi-query and Multi-vector Retrieval
-        ↓
-Retrieval Evaluation and Optimisation
-        ↓
-Conversation Memory
-        ↓
-Structured Outputs and Tool Calling
-        ↓
-Planning and Agent Workflows
-        ↓
-Human-in-the-loop Execution
-        ↓
-Tracing, Cost, Evaluation, and Observability
-```
+Each version is designed to introduce one major idea at a time so the improvement can be understood clearly.
 
 ---
 
-## Project Philosophy
+## What Comes Next
 
-```text
-Understand the Purpose
-        ↓
-Design the Architecture
-        ↓
-Reason Through the Algorithm
-        ↓
-Implement It Directly
-        ↓
-Debug Every Layer
-        ↓
-Measure the System
-        ↓
-Optimise the Real Bottleneck
-```
+The next versions will continue improving retrieval quality and context quality before moving toward more advanced AI workflows.
 
-This repository is part of an ongoing effort to understand AI systems from first principles before relying on framework abstractions.
+Planned future directions:
+
+- parent-child retrieval
+- context compression
+- retrieval evaluation
+- conversation memory
+- more production-grade AI backend patterns
+- eventually agent workflows
+
+---
+
+## Final Note
+
+This project is part of my journey from backend development into AI backend engineering.
+
+I am building these versions one step at a time so I can understand the architecture, logic, and tradeoffs behind each layer of a real RAG system.
+
+If you are also learning RAG, I hope this repository helps you see that a strong system starts with a strong pipeline — not just a model call.
 
 ---
 
