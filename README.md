@@ -41,15 +41,16 @@ This version is about improving **control, clarity, and answer quality** without
 
 ---
 
-## Pipeline
-
-> Replace the image path below with the clean pipeline image for V7 in the next step.
-
-![V7 RAG Pipeline](/screenshots/rag_v7_pipeline.png)
-
----
-
 ## How It Works
+
+```mermaid
+flowchart LR
+    A[Document Ingestion] --> B[Cleaning & Chunking]
+    B --> C[Indexing & Storage]
+    C --> D[Question Retrieval]
+    D --> E[Hybrid Fusion & Reranking]
+    E --> F[Grounded Answer Generation]
+```
 
 ### 1) Document ingestion
 A PDF is uploaded and its text is extracted.
@@ -106,85 +107,14 @@ This version helped me move from **“it works”** to **“I understand why it 
 
 ---
 
-## Project Structure
+## Better Version of This Pipeline
 
-```text
-app/
-├── ai/
-│   ├── embeddings.py
-│   ├── llm.py
-│   ├── prompts.py
-│   ├── reranker.py
-│   └── retriever.py
-├── core/
-│   └── config.py
-├── database/
-│   └── database.py
-├── models/
-│   ├── document.py
-│   └── document_chunk.py
-├── routers/
-│   ├── document.py
-│   └── question.py
-├── schemas/
-│   ├── document.py
-│   └── question.py
-├── services/
-│   ├── document_service.py
-│   └── pdf_service.py
-└── main.py
-```
+This repository represents an earlier stage of my RAG learning pipeline.
 
-The structure is intentionally modular so each stage of the pipeline can be understood and debugged independently.
+For the newer, production-oriented version of this architecture—with stronger retrieval, background document processing, parent-child chunking, retrieval evaluation, conversation context, and further pipeline optimizations—see:
 
----
-
-## Running the Project
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/imLeo007/rag-from-scratch-v7.git
-cd rag-from-scratch-v7
-```
-
-### 2. Create the environment file
-
-Create a `.env` file based on your project settings.
-
-Example:
-
-```env
-DATABASE_URL=postgresql+asyncpg://postgres:password@db:5432/rag_v7_db
-
-EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
-EMBEDDING_DIMENSION=384
-
-RERANKER_MODEL_NAME=cross-encoder/ms-marco-MiniLM-L-6-v2
-RERANK_CANDIDATE_K=10
-
-GEMINI_API_KEY=your_api_key
-GEMINI_MODEL=gemini/gemini-2.0-flash
-PORT=8000
-```
-
-### 3. Start the services
-
-```bash
-docker compose up --build
-```
-
-### 4. Run database migrations
-
-```bash
-docker compose exec api alembic upgrade head
-```
-
-### 5. Open the API docs
-
-```text
-http://localhost:8000/docs
-```
+**GroundForge Production RAG:**  
+https://github.com/imLeo007/groundforge-rag
 
 ---
 
